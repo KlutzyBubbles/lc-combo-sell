@@ -1,0 +1,9 @@
+{
+    "name": "ComboSell",
+    "version_number": "1.0.0",
+    "website_url": "https://github.com/KlutzyBubbles/lc-combo-sell",
+    "description": "[Configurable] The company loves collecting, and will now pay more for sets of items",
+    "dependencies": [
+        "BepInEx-BepInExPack-5.4.2100"
+    ]
+}

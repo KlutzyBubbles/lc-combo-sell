@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Zip Folder
+        run: |
+          cd ModPackage
+          zip -r ../${{ github.event.repository.name }}.zip . -x "*.git*" ".github/*"
+
+      - name: Get commits since version
+        id: commits
+        run: echo "value=$(git log "$(git describe --tags --abbrev=0)..HEAD" --no-merges --oneline)" >> $GITHUB_STATE
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: true
+          body: |
+            ${{ steps.commits.outputs.value }}
+          files: ${{ github.event.repository.name }}.zip
+
+      - name: Get manifest properties
+        id: manifest
+        uses: zoexx/github-action-json-file-properties@release
+        with:
+          file_path: "./ModPackage/manifest.json"
+  
+      - name: echo version
+        run: echo "::debug::${{ steps.manifest.outputs.version_number }}"
+
+      - name: Format version number
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_STATE
+
+      - name: Publish
+        uses: GreenTF/upload-thunderstore-package@v4.1
+        with:
+          namespace: KlutzyBubbles
+          description: ${{ steps.manifest.outputs.description }}
+          token: ${{ secrets.THUNDERSTORE_TOKEN }}
+          name: ${{ steps.manifest.outputs.name }}
+          version: ${{ github.ref_name }}
+          community: lethal-company
+          file: ${{ github.event.repository.name }}.zip
+          repo: thunderstore.io
