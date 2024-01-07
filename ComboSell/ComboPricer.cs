@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml;
 
 namespace ComboSell
 {
@@ -44,22 +45,6 @@ namespace ComboSell
             return _sortedObjects;
         }
 
-        public string[] getUniqueNames()
-        {
-            Plugin.Debug("getUniqueNames()");
-            return getUniqueNames(rawObjects);
-        }
-        public string[] getUniqueNames(GrabbableObject[] objects)
-        {
-            Plugin.Debug($"getUniqueNames({objects.Length})");
-            string[] names = new string[objects.Length];
-            for (int i = 0; i < objects.Length; i++)
-            {
-                names[i] = objects[i].itemProperties.itemName;
-            }
-            return names.Distinct().ToArray();
-        }
-
         public ComboResult processObjects()
         {
             Plugin.Debug("processObjects()");
@@ -69,9 +54,11 @@ namespace ComboSell
             if (settings.multiplesFirst)
             {
                 multipleCombos = processMultiples(ref unusedObjects);
+                setCombos = processSets(ref unusedObjects);
             }
             else
             {
+                setCombos = processSets(ref unusedObjects);
                 multipleCombos = processMultiples(ref unusedObjects);
             }
             return new ComboResult(multipleCombos, setCombos, unusedObjects.ToArray());
@@ -80,7 +67,7 @@ namespace ComboSell
         public ObjectCombo[] processMultiples(ref List<GrabbableObject> unusedObjects)
         {
             Plugin.Debug($"processMultiples({unusedObjects.Count})");
-            string[] uniques = this.getUniqueNames(unusedObjects.ToArray());
+            string[] uniques = unusedObjects.Select(obj => obj.itemProperties.itemName).Distinct().ToArray();
             List<ObjectCombo> combos = new List<ObjectCombo>();
             int maxMultiples = (unusedObjects.Count - uniques.Length) + 1;
             if (maxMultiples > settings.maxMultiple) {
@@ -97,6 +84,7 @@ namespace ComboSell
                 }
                 if (count > settings.minMultiple)
                 {
+                    Plugin.Debug($"Found more than minMultiple({settings.minMultiple}) for '{unique}'");
                     do
                     {
                         int leftToGet = count > maxMultiples ? maxMultiples : count;
@@ -117,6 +105,46 @@ namespace ComboSell
                         }
                     }
                     while (count >= maxMultiples);
+                }
+            }
+            return combos.ToArray();
+        }
+
+        public ObjectCombo[] processSets(ref List<GrabbableObject> unusedObjects)
+        {
+            Plugin.Debug($"processSets({unusedObjects.Count})");
+            List<ObjectCombo> combos = new List<ObjectCombo>();
+            foreach (string setName in settings.setMultipliers.Keys)
+            {
+                bool keepChecking = true;
+                while (keepChecking)
+                {
+                    List<GrabbableObject> foundObjects = new List<GrabbableObject>();
+                    foreach (string itemName in settings.setMultipliers[setName].items)
+                    {
+                        GrabbableObject foundObject = unusedObjects.FirstOrDefault(obj => obj.name == itemName);
+                        if (foundObject != null)
+                        {
+                            foundObjects.Add(foundObject);
+                            continue;
+                        }
+                        else
+                        {
+                            keepChecking = false;
+                            break;
+                        }
+                    }
+                    if (keepChecking)
+                    {
+                        Plugin.Debug($"Found all objects for '{setName}'");
+                        ObjectCombo combo = new ObjectCombo(settings.getSetMultiplier(setName, foundObjects.Count), ComboType.Set, $"{setName}");
+                        foreach (GrabbableObject obj in foundObjects)
+                        {
+                            combo.addObject(obj);
+                            unusedObjects.Remove(obj);
+                        }
+                        combos.Add(combo);
+                    }
                 }
             }
             return combos.ToArray();
