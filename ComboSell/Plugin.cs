@@ -2,7 +2,6 @@
 using HarmonyLib;
 using BepInEx.Logging;
 using BepInEx.Configuration;
-using System.Diagnostics;
 
 namespace ComboSell
 {
@@ -22,13 +21,17 @@ namespace ComboSell
             ConfigFile();
             CompanyCounterPatch.settings = new ComboSettings();
             _harmony = new Harmony("ComboSell");
+            if (debug)
+            {
+                _harmony.PatchAll(typeof(DebugPatch));
+            }
             _harmony.PatchAll(typeof(CompanyCounterPatch));
             StaticLogger.LogInfo("ComboSell loaded");
         }
 
         private void ConfigFile()
         {
-            ConfigEntry<bool> configDebug = Config.Bind("Dev", "Debug", false, "Whether or not to enable debug logging");
+            ConfigEntry<bool> configDebug = Config.Bind("Dev", "Debug", false, "Whether or not to enable debug logging and debug helpers");
             debug = configDebug.Value;
             /*
             EmotePatch.enabledList = new bool[EmoteDefs.getEmoteCount() + 1];
