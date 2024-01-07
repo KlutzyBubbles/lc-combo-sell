@@ -1,4 +1,6 @@
 ﻿using HarmonyLib;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ComboSell
 {
@@ -8,9 +10,9 @@ namespace ComboSell
 
         [HarmonyPatch(typeof(DepositItemsDesk), "SellItemsOnServer")]
         [HarmonyPostfix]
-        private static void SellItemsOnServerPrefix(DepositItemsDesk __instance)
+        private static void SellItemsOnServerPostfix(DepositItemsDesk __instance)
         {
-            Plugin.Debug("SellItemsOnServerPrefix()");
+            Plugin.Debug("SellItemsOnServerPostfix()");
             if (!__instance.IsServer)
             {
                 return;
@@ -40,9 +42,9 @@ namespace ComboSell
 
         [HarmonyPatch(typeof(DepositItemsDesk), "SellAndDisplayItemProfits")]
         [HarmonyPostfix]
-        private static void SellAndDisplayItemProfitsPrefix(ref int profit, ref int newGroupCredits, DepositItemsDesk __instance)
+        private static void SellAndDisplayItemProfitsPostfix(ref int profit, ref int newGroupCredits, DepositItemsDesk __instance)
         {
-            Plugin.Debug($"SellAndDisplayItemProfitsPrefix({profit}, {newGroupCredits})");
+            Plugin.Debug($"SellAndDisplayItemProfitsPostfix({profit}, {newGroupCredits})");
             UnityEngine.Object.FindObjectOfType<Terminal>().groupCredits = newGroupCredits;
             StartOfRound.Instance.gameStats.scrapValueCollected += profit;
             TimeOfDay.Instance.quotaFulfilled += profit;
@@ -58,9 +60,9 @@ namespace ComboSell
 
         [HarmonyPatch(typeof(HUDManager), "DisplayCreditsEarning")]
         [HarmonyPostfix]
-        private static void DisplayCreditsEarningPrefix(ref int creditsEarned, ref GrabbableObject[] objectsSold, ref int newGroupCredits, HUDManager __instance)
+        private static void DisplayCreditsEarningPostfix(ref int creditsEarned, ref GrabbableObject[] objectsSold, ref int newGroupCredits, HUDManager __instance)
         {
-            Plugin.Debug($"DisplayCreditsEarningPrefix({creditsEarned}, {objectsSold.Length}, {newGroupCredits})");
+            Plugin.Debug($"DisplayCreditsEarningPostfix({creditsEarned}, {objectsSold.Length}, {newGroupCredits})");
             // Debug.Log(string.Format("Earned {0}; sold {1} items; new credits amount: {2}", creditsEarned, objectsSold.Length, newGroupCredits));
             string text = "";
             ComboPricer pricer = new ComboPricer(objectsSold, settings);
@@ -81,19 +83,23 @@ namespace ComboSell
             }
             if (result.otherObjects.Length > 0)
                 text += "Regular Sales \n";
-            foreach (GrabbableObject otherObject in result.otherObjects)
+            List<Item> source = new List<Item>();
+            for (int index = 0; index < objectsSold.Length; ++index)
+                source.Add(objectsSold[index].itemProperties);
+            Item[] uniques = source.Distinct().ToArray();
+            foreach (Item uniqueObject in uniques)
             {
                 int value = 0;
                 int count = 0;
-                foreach (GrabbableObject subObject in result.otherObjects)
+                foreach (GrabbableObject otherObject in result.otherObjects)
                 {
-                    if (subObject.itemProperties == otherObject.itemProperties)
+                    if (otherObject.itemProperties == uniqueObject)
                     {
-                        value += subObject.scrapValue;
+                        value += otherObject.scrapValue;
                         count++;
                     }
                 }
-                text += string.Format("{0} (x{1}) : {2} \n", otherObject.itemProperties.itemName, count, value);
+                text += string.Format("{0} (x{1}) : {2} \n", uniqueObject.itemName, count, value);
             }
             __instance.moneyRewardsListText.text = text;
             __instance.moneyRewardsTotalText.text = string.Format("TOTAL: ${0}", creditsEarned);
