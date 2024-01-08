@@ -2,6 +2,9 @@
 using HarmonyLib;
 using BepInEx.Logging;
 using BepInEx.Configuration;
+using System.IO;
+using System;
+using Newtonsoft.Json;
 
 namespace ComboSell
 {
@@ -14,12 +17,13 @@ namespace ComboSell
 
         private Harmony _harmony;
 
+        private readonly string configPath = Path.Combine(Paths.ConfigPath, "combos.json");
+
         private void Awake()
         {
             StaticLogger = Logger;
             StaticLogger.LogInfo("ComboSell loading...");
             ConfigFile();
-            CompanyCounterPatch.settings = new ComboSettings();
             _harmony = new Harmony("ComboSell");
             if (debug)
             {
@@ -33,6 +37,26 @@ namespace ComboSell
         {
             ConfigEntry<bool> configDebug = Config.Bind("Dev", "Debug", false, "Whether or not to enable debug logging and debug helpers");
             debug = configDebug.Value;
+
+            ConfigEntry<bool> configRemoveUnknown = Config.Bind("Settings", "Remove unknown items", false, "Whether or not to remove unknown item names when loading the config, this doesn't write to the json");
+
+            if (!File.Exists(configPath))
+            {
+                CompanyCounterPatch.settings = new ComboSettings(configRemoveUnknown.Value);
+                File.WriteAllText(configPath, JsonConvert.SerializeObject(CompanyCounterPatch.settings));
+            }
+            else
+            {
+                try
+                {
+                    CompanyCounterPatch.settings = ComboSettings.FromJson(File.ReadAllText(configPath), configRemoveUnknown.Value);
+                }
+                catch (Exception e)
+                {
+                    StaticLogger.LogError(e);
+                    CompanyCounterPatch.settings = new ComboSettings(configRemoveUnknown.Value);
+                }
+            }
             /*
             EmotePatch.enabledList = new bool[EmoteDefs.getEmoteCount() + 1];
             EmotePatch.defaultKeyList = new string[EmoteDefs.getEmoteCount() + 1];

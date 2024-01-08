@@ -1,11 +1,23 @@
-﻿using System.Collections.Generic;
-using static Steamworks.InventoryItem;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ComboSell
 {
+    [Serializable]
     internal class ComboSettings
     {
+        public static readonly string[] ItemNames = {
+            "Binoculars", "Boombox", "CardboardBox", "Flashlight", "Jetpack", "Key", "LockPicker", "LungApparatus", "MapDevice", "ProFlashlight", "Shovel",
+            "StunGrenade", "ExtensionLadder", "TZPInhalant", "WalkieTalkie", "ZapGun", "7Ball", "Airhorn", "Bell", "BigBolt", "BottleBin", "Brush", "Candy",
+            "CashRegister", "ChemicalJug", "ClownHorn", "Cog1", "Dentures", "DustPan", "EggBeater", "EnginePart1", "FancyCup", "FancyLamp", "FancyPainting",
+            "FishTestProp", "FlashLaserPointer", "GoldBar", "Hairdryer", "MagnifyingGlass", "MetalSheet", "MoldPan", "Mug", "PerfumeBottle", "Phone", "PickleJar",
+            "PillBottle", "Remote", "Ring", "RobotToy", "RubberDuck", "SodaCanRed", "SteeringWheel", "StopSign", "TeaKettle", "Toothpaste", "ToyCube","RedLocustHive",
+            "RadarBooster", "YieldSign", "Shotgun", "GunAmmo", "SprayPaint", "DiyFlashbang", "GiftBox", "Flask", "TragedyMask", "ComedyMask", "WhoopieCushion"
+        };
 
+        public bool removeUnknownNames = false;
         public bool multiplesFirst = true;
 
         public string[] includeMultiples = [];
@@ -19,6 +31,12 @@ namespace ComboSell
         public Dictionary<int, float> multipleMultipliers = new Dictionary<int, float>();
 
         public Dictionary<string, SetMultiplier> setMultipliers = new Dictionary<string, SetMultiplier>();
+
+        public ComboSettings() {}
+        public ComboSettings(bool removeUnknownNames)
+        {
+            this.removeUnknownNames = removeUnknownNames;
+        }
 
         public float getMultipleMultiplier(int amount)
         {
@@ -45,10 +63,96 @@ namespace ComboSell
             return multiplier;
         }
 
-        internal struct SetMultiplier
+        public void standardizeValues()
         {
-            public string[] items;
-            public float multiplier;
+            Plugin.Debug($"standardizeValues()");
+            Plugin.Debug($"Valid item names: {string.Join(", ", ItemNames)}");
+            standardizeItemList(ref includeMultiples, ItemNames, "includeMultiples");
+            standardizeItemList(ref excludeMultiples, ItemNames, "includeMultiples");
+            Plugin.Debug($"Checking minMultiple");
+            if (minMultiple < 1)
+            {
+                Plugin.StaticLogger.LogWarning($"minMultiple ({minMultiple}) cannot be lower than 1, defaulting to 1");
+                minMultiple = 1;
+            }
+            Plugin.Debug($"Checking maxMultiple");
+            if (maxMultiple < minMultiple)
+            {
+                Plugin.StaticLogger.LogWarning($"maxMultiple ({maxMultiple}) cannot be lower than minMultiple ({minMultiple}), defaulting to minMultiple ({minMultiple})");
+                maxMultiple = minMultiple;
+            }
+            Plugin.Debug($"Checking multipleMultipliers");
+            foreach (int multiplier in multipleMultipliers.Keys.ToArray())
+            {
+                if (multiplier < minMultiple || multiplier > maxMultiple)
+                {
+                    Plugin.StaticLogger.LogWarning($"multiplier key ({multiplier}) in multipleMultipliers is out of range of minMultiple ({minMultiple}) and maxMultiple ({maxMultiple}). Removing...");
+                    if (removeUnknownNames)
+                        multipleMultipliers.Remove(multiplier);
+                }
+            }
+            Plugin.Debug($"Checking setMultipliers");
+            foreach (string setMultiplierName in setMultipliers.Keys.ToArray())
+            {
+                SetMultiplier setMultiplier = setMultipliers[setMultiplierName];
+                List<string> invalidItems = new List<string>();
+                Plugin.Debug($"Checking names in setMultiplers ({setMultiplierName})");
+                foreach (string itemName in setMultiplier.items)
+                {
+                    if (!ItemNames.Contains(itemName))
+                    {
+                        invalidItems.Add(itemName);
+                    }
+                }
+                if (invalidItems.Count > 0)
+                {
+                    Plugin.StaticLogger.LogWarning($"Items {string.Join(",", invalidItems)} from setMultiplier {setMultiplierName} cannot be found in set of all items, see readme or turn on debug to see values");
+                    if (removeUnknownNames)
+                        setMultipliers.Remove(setMultiplierName);
+                }
+            }
         }
+
+        public void standardizeItemList(ref string[] listOfItems, string[] allItems, string logName)
+        {
+            Plugin.Debug($"standardizeItemList({listOfItems.Length}, {allItems.Length}, {logName})");
+            List<string> tempList = listOfItems.Distinct().ToList();
+            if (tempList.Count != listOfItems.Length)
+            {
+                Plugin.StaticLogger.LogWarning($"Duplicates found and removed in {logName}, consider removing the duplicates");
+            }
+            Plugin.Debug($"Checking each in de-duped list");
+            foreach (string itemName in tempList.ToArray())
+            {
+                if (!allItems.Contains(itemName))
+                {
+                    Plugin.StaticLogger.LogWarning($"Cannot find '{itemName}' from {logName} in set of all item names, see readme or turn on debug to see values");
+                    if (removeUnknownNames)
+                        tempList.Remove(itemName);
+                }
+            }
+            listOfItems = tempList.ToArray();
+        }
+
+        public static ComboSettings FromJson(string json, bool removeUnkownNames)
+        {
+            try
+            {
+                ComboSettings settings = JsonConvert.DeserializeObject<ComboSettings>(json);
+                settings.removeUnknownNames = removeUnkownNames;
+                settings.standardizeValues();
+                return settings;
+            } catch (Exception e)
+            {
+                Plugin.StaticLogger.LogError($"Unable to load or standardize values for combo settings, please check config");
+                Plugin.StaticLogger.LogError(e);
+                return new ComboSettings();
+            }
+        }
+    }
+    internal struct SetMultiplier
+    {
+        public string[] items;
+        public float multiplier;
     }
 }

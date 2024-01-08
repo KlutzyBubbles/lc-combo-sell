@@ -122,7 +122,7 @@ namespace ComboSell
                     List<GrabbableObject> foundObjects = new List<GrabbableObject>();
                     foreach (string itemName in settings.setMultipliers[setName].items)
                     {
-                        GrabbableObject foundObject = unusedObjects.FirstOrDefault(obj => obj.name == itemName);
+                        GrabbableObject foundObject = unusedObjects.FirstOrDefault(obj => obj.itemProperties.name == itemName);
                         if (foundObject != null)
                         {
                             foundObjects.Add(foundObject);
@@ -224,19 +224,7 @@ namespace ComboSell
         {
             get
             {
-                List<string> doneNames = new List<string>();
-                string result = "";
-                string prefix = "";
-                foreach (GrabbableObject obj in objects)
-                {
-                    if (!doneNames.Contains(obj.itemProperties.itemName))
-                    {
-                        result += $"{prefix}{obj.itemProperties.itemName}";
-                        doneNames.Add(obj.itemProperties.itemName);
-                        prefix = ", ";
-                    }
-                }
-                return result;
+               return string.Join(", ", objects.Select(obj => obj.itemProperties.itemName));
             }
         }
     }
