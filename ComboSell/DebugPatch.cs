@@ -22,7 +22,7 @@ namespace ComboSell
         {
             if (!UnityEngine.Application.isEditor || !NetworkManager.Singleton.IsConnectedClient || !NetworkManager.Singleton.IsServer)
                 return;
-            Plugin.Debug(string.Join(", ", StartOfRound.Instance.allItemsList.itemsList.Select(item => item.name)));
+            Plugin.Debug(string.Join(", ", StartOfRound.Instance.allItemsList.itemsList.ToList().Select(item => item.name)));
             UnityEngine.GameObject gameObject = UnityEngine.Object.Instantiate<UnityEngine.GameObject>(StartOfRound.Instance.allItemsList.itemsList[__instance.itemToSpawnId].spawnPrefab, __instance.debugEnemySpawnPositions[3].position, UnityEngine.Quaternion.identity, StartOfRound.Instance.propsContainer);
             gameObject.GetComponent<GrabbableObject>().fallTime = 0.0f;
             gameObject.GetComponent<GrabbableObject>().scrapValue = ScrapRandom.Next(1, 100);
