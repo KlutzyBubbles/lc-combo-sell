@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine.UIElements;
 
 namespace ComboSell
 {
@@ -27,11 +26,11 @@ namespace ComboSell
                     _sortedObjects = rawObjects.ToList();
                     _sortedObjects.Sort(delegate (GrabbableObject object1, GrabbableObject object2)
                     {
-                        if (object1.itemProperties.itemName != object2.itemProperties.itemName)
+                        if (object1.itemProperties.name != object2.itemProperties.name)
                         {
                             return object1.scrapValue.CompareTo(object2.scrapValue);
                         }
-                        return object1.itemProperties.itemName.CompareTo(object2.itemProperties.itemName);
+                        return object1.itemProperties.name.CompareTo(object2.itemProperties.name);
                     });
                 }
                 return _sortedObjects;
@@ -56,14 +55,14 @@ namespace ComboSell
                 setCombos = processSets(ref unusedObjects);
                 multipleCombos = processMultiples(ref unusedObjects);
             }
-            Plugin.Debug($"unusedObject check 1 [{string.Join(", ", unusedObjects.ToList().Select(obj => obj.itemProperties.name))}]");
             return new ComboResult(multipleCombos, setCombos, unusedObjects.ToList());
         }
 
         public List<ObjectCombo> processMultiples(ref List<GrabbableObject> unusedObjects)
         {
             Plugin.Debug($"processMultiples([{string.Join(", ", unusedObjects.ToList().Select(obj => obj.itemProperties.name))}])");
-            string[] uniques = unusedObjects.ToList().Select(obj => obj.itemProperties.itemName).Distinct().ToArray();
+            string[] uniques = unusedObjects.ToList().Select(obj => obj.itemProperties.name).Distinct().ToArray();
+            Plugin.Debug($"uniques: [{string.Join(", ", uniques.ToList())}]");
             List<ObjectCombo> combos = new List<ObjectCombo>();
             int maxMultiples = (unusedObjects.Count - uniques.Length) + 1;
             if (maxMultiples > settings.maxMultiple) {
@@ -79,7 +78,7 @@ namespace ComboSell
                 int count = 0;
                 foreach (GrabbableObject obj in unusedObjects)
                 {
-                    if (obj.itemProperties.itemName == unique) count++;
+                    if (obj.itemProperties.name == unique) count++;
                 }
                 Plugin.Debug($"Found {count} of item");
                 if (count > settings.minMultiple)
@@ -95,7 +94,7 @@ namespace ComboSell
                             ObjectCombo combo = new ObjectCombo(settings.getMultipleMultiplier(leftToGet), ComboType.Mulitple, $"x{leftToGet}");
                             foreach (GrabbableObject obj in unusedObjects.ToList())
                             {
-                                if (leftToGet > 0 && obj.itemProperties.itemName == unique)
+                                if (leftToGet > 0 && obj.itemProperties.name == unique)
                                 {
                                     combo.addObject(obj);
                                     unusedObjects.Remove(obj);
@@ -124,24 +123,28 @@ namespace ComboSell
                 {
                     Plugin.Debug($"keepChecking while");
                     List<GrabbableObject> foundObjects = new List<GrabbableObject>();
-                    Plugin.Debug($"unusedObject check 2 [{string.Join(", ", unusedObjects.ToList().Select(obj => obj.itemProperties.name))}]");
                     foreach (string itemName in settings.setMultipliers[setName].items)
                     {
                         Plugin.Debug($"Checking for item {itemName}");
-                        GrabbableObject foundObject = unusedObjects.Where(obj => obj.itemProperties.name == itemName).FirstOrDefault();
-                        if (foundObject != null)
+                        bool objectFound = false;
+                        foreach (GrabbableObject obj in unusedObjects.ToList())
                         {
-                            Plugin.Debug($"Adding foundObject");
-                            foundObjects.Add(foundObject);
+                            Plugin.Debug($"Checking '{obj.itemProperties.name}' against '{itemName}'");
+                            if (obj.itemProperties.name == itemName)
+                            {
+                                Plugin.Debug($"Adding foundObject");
+                                foundObjects.Add(obj);
+                                objectFound = true;
+                                break;
+                            }
                         }
-                        else
+                        if (!objectFound)
                         {
-                            Plugin.Debug($"foundObject is null");
+                            Plugin.Debug($"Object not found");
                             keepChecking = false;
                             break;
                         }
                     }
-                    Plugin.Debug($"unusedObject check 3 [{string.Join(", ", unusedObjects.ToList().Select(obj => obj.itemProperties.name))}]");
                     if (keepChecking)
                     {
                         Plugin.Debug($"Found all objects for '{setName}'");
@@ -156,7 +159,6 @@ namespace ComboSell
                     }
                 }
             }
-            Plugin.Debug($"unusedObject check 4 [{string.Join(", ", unusedObjects.ToList().Select(obj => obj.itemProperties.name))}]");
             return combos;
         }
     }
@@ -234,14 +236,14 @@ namespace ComboSell
         {
             get
             {
-                return string.Join(", ", objects.ToList().Select(obj => obj.itemProperties.itemName));
+                return string.Join(", ", objects.ToList().Select(obj => obj.itemProperties.name));
             }
         }
         public string uniqueItemNames
         {
             get
             {
-                return string.Join(", ", objects.ToList().Select(obj => obj.itemProperties.itemName).Distinct());
+                return string.Join(", ", objects.ToList().Select(obj => obj.itemProperties.name).Distinct());
             }
         }
     }

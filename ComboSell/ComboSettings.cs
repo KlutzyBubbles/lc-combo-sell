@@ -68,7 +68,9 @@ namespace ComboSell
             Plugin.Debug($"standardizeValues()");
             Plugin.Debug($"Valid item names: {string.Join(", ", ItemNames)}");
             standardizeItemList(ref includeMultiples, ItemNames, "includeMultiples");
+            Plugin.Debug($"includeMultiples: [{String.Join(", ", includeMultiples)}]");
             standardizeItemList(ref excludeMultiples, ItemNames, "includeMultiples");
+            Plugin.Debug($"includeMultiples: [{String.Join(", ", includeMultiples)}]");
             Plugin.Debug($"Checking minMultiple");
             if (minMultiple < 1)
             {
@@ -115,7 +117,7 @@ namespace ComboSell
 
         public void standardizeItemList(ref string[] listOfItems, string[] allItems, string logName)
         {
-            Plugin.Debug($"standardizeItemList({listOfItems.Length}, {allItems.Length}, {logName})");
+            Plugin.Debug($"standardizeItemList({listOfItems.Length}, {allItems.Length}, {logName}) [{String.Join(", ", listOfItems)}]");
             List<string> tempList = listOfItems.Distinct().ToList();
             if (tempList.Count != listOfItems.Length)
             {
@@ -131,6 +133,7 @@ namespace ComboSell
                         tempList.Remove(itemName);
                 }
             }
+            Plugin.Debug($"Output list: [{String.Join(", ", listOfItems)}]");
             listOfItems = tempList.ToArray();
         }
 

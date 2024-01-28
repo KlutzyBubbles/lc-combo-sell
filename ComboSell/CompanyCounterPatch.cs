@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Xml;
 
 namespace ComboSell
 {
@@ -11,18 +10,25 @@ namespace ComboSell
         public static ComboSettings settings;
 
         [HarmonyPatch(typeof(DepositItemsDesk), "SellItemsOnServer")]
-        [HarmonyPostfix]
-        private static void SellItemsOnServerPostfix(DepositItemsDesk __instance)
+        [HarmonyPrefix]
+        private static bool SellItemsOnServerPrefix(DepositItemsDesk __instance)
         {
             try
             {
-                Plugin.Debug("SellItemsOnServerPostfix()");
+                Plugin.Debug("SellItemsOnServerPrefix()");
                 if (!__instance.IsServer)
                 {
-                    return;
+                    return false;
                 }
                 __instance.inSellingItemsAnimation = true;
-                ComboPricer pricer = new ComboPricer(ref __instance.itemsOnCounter, settings);
+                Plugin.Debug($"__instance.itemsOnCounter ({__instance.itemsOnCounter.Count})[{string.Join(", ", __instance.itemsOnCounter.ToList().Select(obj => obj.itemProperties.name))}]");
+                GrabbableObject[] componentsInChildren = __instance.deskObjectsContainer.GetComponentsInChildren<GrabbableObject>();
+                Plugin.Debug($"componentsInChildren ({componentsInChildren.Length})[{string.Join(", ", componentsInChildren.ToList().Select(obj => obj.itemProperties.name))}]");
+                List<GrabbableObject> itemsToCalc2 = componentsInChildren.Where(obj => obj.itemProperties.isScrap).ToList();
+                Plugin.Debug($"itemsToCalc2 ({itemsToCalc2.Count})[{string.Join(", ", itemsToCalc2.ToList().Select(obj => obj.itemProperties.name))}]");
+                List<GrabbableObject> itemsToCalc = __instance.itemsOnCounter.Where(obj => obj.itemProperties.isScrap).ToList();
+                Plugin.Debug($"itemsToCalc ({itemsToCalc.Count})[{string.Join(", ", itemsToCalc.ToList().Select(obj => obj.itemProperties.name))}]");
+                ComboPricer pricer = new ComboPricer(ref itemsToCalc2, settings);
                 ComboResult result = pricer.processObjects();
                 Plugin.Debug($"Result info:");
                 Plugin.Debug($"multipleCombos ({result.multipleCombos.Count})[{string.Join(", ", result.multipleCombos)}]");
@@ -44,7 +50,7 @@ namespace ComboSell
                 Plugin.Debug($"totalValue set {totalValue}");
                 foreach (GrabbableObject otherObject in result.otherObjects)
                 {
-                    Plugin.Debug($"other object {otherObject.itemProperties.name}");
+                    Plugin.Debug($"other object {otherObject.itemProperties.name}, scrapValue {otherObject.scrapValue}");
                     totalValue += otherObject.scrapValue;
                 }
                 Plugin.Debug($"totalValue other {totalValue}");
@@ -53,51 +59,34 @@ namespace ComboSell
                 terminal.groupCredits += totalValue;
                 __instance.SellItemsClientRpc(totalValue, terminal.groupCredits, __instance.itemsOnCounterAmount, StartOfRound.Instance.companyBuyingRate);
                 __instance.SellAndDisplayItemProfits(totalValue, terminal.groupCredits);
+                return false;
             }
             catch (Exception e)
             {
-                Plugin.StaticLogger.LogError($"Error processing DisplayCreditsEarningPostfix, please report this with debug logs.");
+                Plugin.StaticLogger.LogError($"Error processing SellItemsOnServerPostfix, please report this with debug logs.");
                 Plugin.StaticLogger.LogError(e);
             }
+            return true;
         }
-
-        /*
-        [HarmonyPatch(typeof(DepositItemsDesk), "SellAndDisplayItemProfits")]
-        [HarmonyPostfix]
-        private static void SellAndDisplayItemProfitsPostfix(ref int profit, ref int newGroupCredits, DepositItemsDesk __instance)
-        {
-            Plugin.Debug($"SellAndDisplayItemProfitsPostfix({profit}, {newGroupCredits})");
-            UnityEngine.Object.FindObjectOfType<Terminal>().groupCredits = newGroupCredits;
-            StartOfRound.Instance.gameStats.scrapValueCollected += profit;
-            TimeOfDay.Instance.quotaFulfilled += profit;
-            GrabbableObject[] componentsInChildren = __instance.deskObjectsContainer.GetComponentsInChildren<GrabbableObject>();
-            if (__instance.acceptItemsCoroutine != null)
-            {
-                __instance.StopCoroutine(__instance.acceptItemsCoroutine);
-            }
-            // delayedAcceptanceOfItems calls DisplayCreditsEarning with profit->creditsEarned and componentsInChildren->objectsSold
-            __instance.acceptItemsCoroutine = __instance.StartCoroutine(__instance.delayedAcceptanceOfItems(profit, componentsInChildren, newGroupCredits));
-            __instance.CheckAllPlayersSoldItemsServerRpc();
-        }
-        */
 
         [HarmonyPatch(typeof(HUDManager), "DisplayCreditsEarning")]
         [HarmonyPostfix]
-        private static void DisplayCreditsEarningPostfix(ref int creditsEarned, ref List<GrabbableObject> objectsSold, ref int newGroupCredits, HUDManager __instance)
+        private static void DisplayCreditsEarningPostfix(ref int creditsEarned, ref GrabbableObject[] objectsSold, ref int newGroupCredits, HUDManager __instance)
         {
             try
             {
                 Plugin.Debug($"DisplayCreditsEarningPostfix({creditsEarned}, [{string.Join(", ", objectsSold.ToList().Select(obj => obj.itemProperties.name))}], {newGroupCredits})");
-                // Debug.Log(string.Format("Earned {0}; sold {1} items; new credits amount: {2}", creditsEarned, objectsSold.Length, newGroupCredits));
                 string text = "";
-                ComboPricer pricer = new ComboPricer(ref objectsSold, settings);
+                List<GrabbableObject> objects = objectsSold.Where(obj => obj.itemProperties.isScrap).ToList();
+                ComboPricer pricer = new ComboPricer(ref objects, settings);
                 ComboResult result = pricer.processObjects();
                 Plugin.Debug($"Result info:");
                 Plugin.Debug($"multipleCombos ({result.multipleCombos.Count})[{string.Join(", ", result.multipleCombos)}]");
                 Plugin.Debug($"setCombos ({result.setCombos.Count})[{string.Join(", ", result.setCombos)}]");
-                Plugin.Debug($"otherObjects ({result.otherObjects.Count})[{string.Join(", ", result.otherObjects)}]");
+                Plugin.Debug($"otherObjects ({result.otherObjects.Count})[{string.Join(", ", result.otherObjects.ToList().Select(obj => obj.itemProperties.name))}]");
                 if (result.multipleCombos.Count > 0)
                     text += "Multiplier Combos \n";
+                Plugin.Debug($"Processing text for multipleCombos");
                 foreach (ObjectCombo combo in result.multipleCombos)
                 {
                     Plugin.Debug($"combo {combo.name}, totalValue {combo.totalValue}, multiplier {combo.multiplier}, type {combo.type}, items [{combo.itemNames}]");
@@ -106,6 +95,7 @@ namespace ComboSell
                 }
                 if (result.setCombos.Count > 0)
                     text += "Set Combos \n";
+                Plugin.Debug($"Processing text for setCombos");
                 foreach (ObjectCombo combo in result.setCombos)
                 {
                     Plugin.Debug($"combo {combo.name}, totalValue {combo.totalValue}, multiplier {combo.multiplier}, type {combo.type}, items [{combo.itemNames}]");
@@ -114,18 +104,19 @@ namespace ComboSell
                 }
                 if (result.otherObjects.Count > 0)
                     text += "Regular Sales \n";
-                List<Item> source = new List<Item>();
-                for (int index = 0; index < objectsSold.Count; ++index)
-                    source.Add(objectsSold[index].itemProperties);
-                Item[] uniques = source.Distinct().ToArray();
+                Plugin.Debug($"Processing text for otherObjects");
+                Item[] uniques = result.otherObjects.ToList().Select(obj => obj.itemProperties).Distinct().ToArray();
                 foreach (Item uniqueObject in uniques)
                 {
+                    Plugin.Debug($"From uniques {uniqueObject.name}");
                     int value = 0;
                     int count = 0;
                     foreach (GrabbableObject otherObject in result.otherObjects)
                     {
+                        Plugin.Debug($"From otherObjects {otherObject.itemProperties.name}");
                         if (otherObject.itemProperties == uniqueObject)
                         {
+                            Plugin.Debug($"Adding scrap value for {uniqueObject.name} of value {otherObject.scrapValue}");
                             value += otherObject.scrapValue;
                             count++;
                         }
@@ -138,6 +129,7 @@ namespace ComboSell
                 __instance.rewardsScrollbar.value = 1f;
                 if (text.Split('\n').Length > 8)
                 {
+                    Plugin.Debug($"Output text is greater than 8 lines");
                     if (__instance.scrollRewardTextCoroutine != null)
                     {
                         __instance.StopCoroutine(__instance.scrollRewardTextCoroutine);
